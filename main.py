@@ -1,9 +1,5 @@
-"""Runs the microstructure segmentation pipeline: self-supervised encoder pretraining on the
-full 961-image unlabeled UHCS corpus, then K-fold cross-validated U-Net (segmentation-models-
-pytorch, ResNet18 encoder, SSL-pretrained + ImageNet-initialized) fine-tuning vs classical
-watershed, per-class IoU on the real uhcs_general 4-class legend, binary IoU on the
-particles_spheroidite subset, ASTM E562 stereology comparison, particle morphology, and figure
-generation."""
+"""Encoder pretraining on the unlabeled UHCS corpus, then K-fold U-Net fine-tuning vs classical
+watershed on the two annotated subsets, plus ASTM E562 stereology and particle morphology."""
 
 import os
 import sys

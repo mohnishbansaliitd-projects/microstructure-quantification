@@ -79,24 +79,12 @@ def build_pretrained_unet(
     encoder_weights: str = "imagenet",
     pretrained_encoder_path: Optional[str] = None
 ) -> nn.Module:
-    """Builds a segmentation-models-pytorch U-Net with a pretrained encoder, for actual
-    fine-tuning (not just instantiation) on the UHCS micrographs.
+    """segmentation-models-pytorch U-Net for fine-tuning on the UHCS micrographs. in_channels=1
+    goes straight to smp, which averages the pretrained RGB kernels down instead of us tiling
+    the grayscale channel to 3.
 
-    in_channels=1 is passed straight to smp rather than replicating the grayscale channel to 3:
-    smp adapts the pretrained first conv layer for the requested channel count internally
-    (it averages the pretrained RGB kernels down to 1 channel), which is the more direct
-    integration path and avoids a 3x-wider first layer for no benefit on single-channel SEM
-    micrographs.
-
-    pretrained_encoder_path: optional path to an encoder state dict produced by
-    core/ssl_pretrain.py's self-supervised (denoising/masked-patch) pretraining stage on the
-    full 961-image unlabeled UHCS corpus. When given, the model is still first built with
-    encoder_weights (normally "imagenet") and then its encoder weights are OVERWRITTEN by the
-    self-supervised-pretrained state dict -- i.e. the chain is
-    ImageNet init -> self-supervised pretrain on 961 images -> load here -> supervised
-    fine-tune on the 48 pixel-annotated images, rather than starting the SSL stage (and this
-    fine-tuning stage) from a randomly initialized encoder. See core/ssl_pretrain.py's module
-    docstring for why that chained initialization was chosen over SSL-from-scratch.
+    pretrained_encoder_path optionally overwrites the encoder weights after the imagenet init,
+    with a state dict from ssl_pretrain.py's self-supervised stage -- see that module for why.
     """
     model = smp.Unet(
         encoder_name=encoder_name,

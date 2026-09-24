@@ -1,31 +1,11 @@
-"""Self-supervised (denoising / masked-patch) pretraining of the segmentation encoder on the
-full 961-image NIST UHCS corpus, so it can be used as the initialization for the supervised
-K-fold fine-tuning step in benchmark/train_and_evaluate.py instead of (or on top of) plain
-ImageNet weights.
+"""Self-supervised pretraining of the segmentation encoder on the 961-image UHCS corpus,
+used to initialize the K-fold fine-tuning step in benchmark/train_and_evaluate.py.
 
-Pretext task: a basic masked-patch denoising autoencoder. Each clean, normalized grayscale
-micrograph is corrupted by (a) zeroing out a random subset of non-overlapping square patches
-(masking) and (b) adding Gaussian pixel noise everywhere, then the same segmentation-models-
-pytorch U-Net architecture used for fine-tuning (resnet18 encoder + U-Net decoder), with a
-1-channel sigmoid output head instead of a class-logit head, is trained to reconstruct the
-original clean image under MSE loss. This is the standard "masked-autoencoder-style pretext
-task" in its simplest, CPU-fast form -- a full ViT-MAE (patchified transformer, learned mask
-tokens, encoder never sees masked patches) is deliberately not used here; the goal is only to
-adapt the resnet18 encoder's low-level filters to the SEM micrograph domain before the tiny
-48-image supervised fine-tuning stage, not to build a state-of-the-art pretraining method.
-
-Initialization choice: the encoder for SSL pretraining is *itself* started from ImageNet
-weights (encoder_weights="imagenet"), not from scratch. So the full chain is:
-    ImageNet init -> self-supervised denoising pretrain on N unlabeled UHCS images
-    -> supervised fine-tune on the 48 pixel-annotated images (K-fold CV)
-This is more defensible than training the SSL stage from a random encoder: with only a few
-hundred unlabeled micrographs and a handful of CPU epochs, training a ResNet18 from scratch
-would not converge to useful filters, whereas adapting already-good ImageNet edge/texture
-filters to the micrograph domain is a realistic, fast semi-supervised warm-start.
-
-Honesty note on scale: pretraining on the full 961 images for many epochs is too slow for a
-CPU-only environment within the project's few-minutes time budget (measured: see the docstring
-of pretrain_ssl_encoder for the exact subsample size and epoch count actually used, and why).
+Pretext task: mask random patches + add Gaussian noise, train the resnet18 U-Net encoder
+(with a 1-channel reconstruction head instead of the class head) to denoise the image back,
+starting from ImageNet weights rather than random init -- a full 961 images is too slow to
+pretrain on CPU within the time budget, see pretrain_ssl_encoder() for the actual subsample
+size and epoch count used.
 """
 
 import glob
@@ -141,26 +121,12 @@ def pretrain_ssl_encoder(
     device: str = "cpu",
     seed: int = 42
 ) -> Dict[str, Any]:
-    """Runs the masked-patch denoising self-supervised pretraining stage on a seeded random
-    subsample of the full unlabeled UHCS corpus.
+    """Runs masked-patch denoising pretraining on a fixed, seeded subsample of the UHCS corpus
+    (loaded once, `num_epochs` full passes over it -- not resampled per epoch).
 
-    Honest accounting of what "pretrained on N images" means here: `num_images` distinct
-    micrographs are loaded ONCE into memory (a fixed subsample of the 961-image corpus, not
-    resampled per epoch), and every one of `num_epochs` epochs is a full pass over all
-    `num_images` of them (shuffled minibatches each epoch) -- so with the default
-    num_images=200, num_epochs=5 used by main.py, that is 200 images x 5 epochs = 1000
-    image-corruption-reconstruction steps total, not "961 images used exhaustively every
-    epoch" and not the full corpus. 200/961 (~21%) at 160x160 resolution (already used for
-    fine-tuning) was chosen from real timed measurements on this CPU: a short pilot (20
-    images x 2 epochs, batch_size=8) ran in ~4.6s train time; a full timed run at a larger
-    300 images x 6 epochs (batch_size=16) then measured 322.8s (~5.4 min) train + 3.0s load,
-    with the reconstruction MSE loss dropping from 0.033 -> 0.016 across the 6 epochs (clear
-    convergence, mostly plateaued by epoch 4-5). Since 300x6 alone would consume this
-    project's whole few-minutes CPU budget and main.py still has K-fold fine-tuning and
-    figure generation to run afterward, the shipped default was scaled down to 200x5
-    (~1000 image-epochs, well under half of the 1800 measured at 300x6) rather than reused
-    as-is. See main.py's SSL_NUM_IMAGES/SSL_NUM_EPOCHS constants and the comment beside them
-    for this same accounting.
+    Default 200 images / 5 epochs, not the full 961: a 300x6 run timed at ~5.4 min CPU train
+    time alone, which would eat the budget main.py also needs for K-fold fine-tuning and
+    figure generation, so this was scaled back rather than run at full size.
     """
     torch.manual_seed(seed)
     gen = torch.Generator().manual_seed(seed)

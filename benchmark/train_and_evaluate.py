@@ -1,28 +1,14 @@
 """Trains segmentation-models-pytorch U-Nets via K-fold cross-validation and benchmarks them
 against classical watershed segmentation and ASTM E562 point counting.
 
-Two-stage pipeline, matching the "961 images, 48 pixel-annotated" claim literally:
-  Stage 1 (self-supervised pretraining, core/ssl_pretrain.py): a masked-patch denoising
-    autoencoder built on the same resnet18 encoder is trained on a seeded subsample of the
-    full 961-image unlabeled NIST UHCS corpus (Kaggle mirror of DeCost et al.) to adapt the
-    ImageNet-initialized encoder filters to the SEM micrograph domain, with no pixel labels
-    involved. Run from main.py's pipeline step [0]; see that module and
-    core/ssl_pretrain.pretrain_ssl_encoder's docstring for the exact subsample size, epoch
-    count, and CPU-time accounting actually used.
-  Stage 2 (this module): the resulting encoder weights are loaded via
-    build_pretrained_unet(..., pretrained_encoder_path=...) as the starting point for
-    supervised K-fold fine-tuning on the two real pixel-annotated subsets (48 images total;
-    see data_check/uhcs/README.txt):
-  - "uhcs_general" (24 images): real 4-class legend (0=ferritic matrix, 1=proeutectoid carbide
-    network, 2=spheroidite particles, 3=Widmanstatten lath). -1 (scale-bar/imaging metadata) is
-    handled as an ignore-index, not merged into class 0 (see data/dataset_loader.py).
-  - "particles_spheroidite" (24 images): genuinely binary legend (0=matrix, 1=spheroidite
-    particle) -- kept binary rather than forced into the 4-class scheme.
+The encoder is pretrained self-supervised on the full unlabeled UHCS corpus (core/ssl_pretrain.py,
+run from main.py step [0]) before fine-tuning here, on the two real pixel-annotated subsets
+(see data_check/uhcs/README.txt): "uhcs_general" (24 images, 4-class: matrix/carbide network/
+spheroidite/Widmanstatten, -1 scale-bar pixels as ignore-index) and "particles_spheroidite"
+(24 images, genuinely binary matrix/spheroidite).
 
-With only 24 images per subset, a single train/test split is not trustworthy, so each subset is
-evaluated with K-fold CV: a fresh model is trained per fold on that fold's train split (starting
-from the shared SSL-pretrained encoder, when pretrained_encoder_path is supplied) and evaluated
-only on its held-out split, then IoU/Dice are aggregated as mean +/- std across folds.
+24 images per subset is too few to trust a single split, so both use K-fold CV: a fresh model
+trains per fold and is evaluated only on its held-out images, IoU/Dice reported as mean +/- std.
 """
 
 import numpy as np
