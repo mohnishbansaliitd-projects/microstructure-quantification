@@ -40,10 +40,10 @@ outputs/figures/             saved figures
 
 ## How to run
 
-No requirements file is included. From the imports, the dependencies are: numpy, pandas, scipy, scikit-image, scikit-learn, pillow, matplotlib, torch, segmentation-models-pytorch and pytest.
+Dependencies are listed in `requirements.txt`.
 
 ```
-pip install numpy pandas scipy scikit-image scikit-learn pillow matplotlib torch segmentation-models-pytorch pytest
+pip install -r requirements.txt
 python -m pytest tests
 python main.py
 ```
@@ -56,6 +56,6 @@ python main.py
 - Images are downsized to 160x160 and training is short; the pretraining uses a 200-image subsample of the 961-image corpus.
 - Whether self-supervised pretraining helps was not tested against an ImageNet-only control.
 - The watershed baseline is binary, so it is compared with the U-Net only on foreground versus background.
-- Next steps: no requirements file or saved metrics table yet; add both, and train longer at full resolution.
+- Next steps: no saved metrics table yet; add one, and train longer at full resolution.
 
 Mohnish Bansal, B.Tech Materials Engineering, IIT Delhi
